@@ -22,30 +22,19 @@
 
 import os
 
-from .base_depth_dataset import BaseDepthDataset, get_pred_name, DatasetMode  # noqa: F401
-from .diode_dataset import DIODEDataset
-from .eth3d_dataset import ETH3DDataset
-from .hypersim_dataset import HypersimDataset
-from .kitti_dataset import KITTIDataset
-from .nyu_dataset import NYUDataset
-from .scannet_dataset import ScanNetDataset
-from .vkitti_dataset import VirtualKITTIDataset
+# from .base_depth_dataset import BaseDepthDataset, get_pred_name, DatasetMode  # noqa: F401
+from .base_fwi_dataset import BaseFWIDataset, get_pred_name, DatasetMode  # noqa: F401
+from .gprmax_dataset import GRPMaxDataset
 
 
 dataset_name_class_dict = {
-    "hypersim": HypersimDataset,
-    "vkitti": VirtualKITTIDataset,
-    "nyu_v2": NYUDataset,
-    "kitti": KITTIDataset,
-    "eth3d": ETH3DDataset,
-    "diode": DIODEDataset,
-    "scannet": ScanNetDataset,
+    "gprMax": GRPMaxDataset,
 }
 
 
 def get_dataset(
     cfg_data_split, base_data_dir: str, mode: DatasetMode, **kwargs
-) -> BaseDepthDataset:
+) -> BaseFWIDataset:
     if "mixed" == cfg_data_split.name:
         assert DatasetMode.TRAIN == mode, "Only training mode supports mixed datasets."
         dataset_ls = [

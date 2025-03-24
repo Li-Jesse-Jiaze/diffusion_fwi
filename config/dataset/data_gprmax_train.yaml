@@ -1,0 +1,7 @@
+name: gprMax
+disp_name: gprMax_train
+dir: data/
+filenames: data_split/gprmax/gprmax_train.txt
+resize_to_hw:
+- 512
+- 512

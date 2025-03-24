@@ -1,0 +1,4 @@
+name: gprMax
+disp_name: gprMax_val
+dir: data/
+filenames: data_split/gprmax/gprmax_val.txt
