@@ -33,7 +33,7 @@ from torch.utils.data import ConcatDataset, DataLoader
 from tqdm import tqdm
 
 from marigold.marigold_pipeline import MarigoldPipeline
-from src.dataset import BaseDepthDataset, DatasetMode, get_dataset
+from src.dataset import BaseFWIDataset, DatasetMode, get_dataset
 from src.dataset.mixed_sampler import MixedBatchSampler
 from src.trainer import get_trainer_cls
 from src.util.config_util import (
@@ -141,6 +141,9 @@ if "__main__" == __name__:
             out_dir_run = os.path.join(output_dir, job_name)
         else:
             out_dir_run = os.path.join("./output", job_name)
+        if os.path.exists(out_dir_run):
+            import shutil
+            shutil.rmtree(out_dir_run, ignore_errors=True)
         os.makedirs(out_dir_run, exist_ok=False)
 
     cfg_data = cfg.dataset
@@ -253,7 +256,7 @@ if "__main__" == __name__:
     depth_transform: DepthNormalizerBase = get_depth_normalizer(
         cfg_normalizer=cfg.depth_normalization
     )
-    train_dataset: BaseDepthDataset = get_dataset(
+    train_dataset: BaseFWIDataset = get_dataset(
         cfg_data.train,
         base_data_dir=base_data_dir,
         mode=DatasetMode.TRAIN,

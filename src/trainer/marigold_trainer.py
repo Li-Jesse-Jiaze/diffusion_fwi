@@ -221,24 +221,25 @@ class MarigoldTrainer:
                 # >>> With gradient accumulation >>>
 
                 # Get data
-                rgb = batch["rgb_norm"].to(device)
+                bscan = batch["bscan_norm"].to(device)
+                bscan = bscan.repeat(1, 3, 1, 1)
                 depth_gt_for_latent = batch[self.gt_depth_type].to(device)
 
-                if self.gt_mask_type is not None:
-                    valid_mask_for_latent = batch[self.gt_mask_type].to(device)
-                    invalid_mask = ~valid_mask_for_latent
-                    valid_mask_down = ~torch.max_pool2d(
-                        invalid_mask.float(), 8, 8
-                    ).bool()
-                    valid_mask_down = valid_mask_down.repeat((1, 4, 1, 1))
-                else:
-                    raise NotImplementedError
+                # if self.gt_mask_type is not None:
+                #     valid_mask_for_latent = batch[self.gt_mask_type].to(device)
+                #     invalid_mask = ~valid_mask_for_latent
+                #     valid_mask_down = ~torch.max_pool2d(
+                #         invalid_mask.float(), 8, 8
+                #     ).bool()
+                #     valid_mask_down = valid_mask_down.repeat((1, 4, 1, 1))
+                # else:
+                #     raise NotImplementedError
 
-                batch_size = rgb.shape[0]
+                batch_size = bscan.shape[0]
 
                 with torch.no_grad():
                     # Encode image
-                    rgb_latent = self.model.encode_rgb(rgb)  # [B, 4, h, w]
+                    rgb_latent = self.model.encode_rgb(bscan)  # [B, 4, h, w]
                     # Encode GT depth
                     gt_depth_latent = self.encode_depth(
                         depth_gt_for_latent
@@ -308,14 +309,15 @@ class MarigoldTrainer:
                 else:
                     raise ValueError(f"Unknown prediction type {self.prediction_type}")
 
-                # Masked latent loss
-                if self.gt_mask_type is not None:
-                    latent_loss = self.loss(
-                        model_pred[valid_mask_down].float(),
-                        target[valid_mask_down].float(),
-                    )
-                else:
-                    latent_loss = self.loss(model_pred.float(), target.float())
+                # # Masked latent loss
+                # if self.gt_mask_type is not None:
+                #     latent_loss = self.loss(
+                #         model_pred[valid_mask_down].float(),
+                #         target[valid_mask_down].float(),
+                #     )
+                # else:
+                #     latent_loss = self.loss(model_pred.float(), target.float())
+                latent_loss = self.loss(model_pred.float(), target.float())
 
                 loss = latent_loss.mean()
 
@@ -507,14 +509,15 @@ class MarigoldTrainer:
         ):
             assert 1 == data_loader.batch_size
             # Read input image
-            rgb_int = batch["rgb_int"]  # [B, 3, H, W]
+            bscan = batch["bscan_norm"]  # [B, 3, H, W]
+            bscan = bscan.repeat(1, 3, 1, 1)
             # GT depth
-            depth_raw_ts = batch["depth_raw_linear"].squeeze()
+            depth_raw_ts = batch["eps_norm"].squeeze()
             depth_raw = depth_raw_ts.numpy()
             depth_raw_ts = depth_raw_ts.to(self.device)
-            valid_mask_ts = batch["valid_mask_raw"].squeeze()
-            valid_mask = valid_mask_ts.numpy()
-            valid_mask_ts = valid_mask_ts.to(self.device)
+            # valid_mask_ts = batch["valid_mask_raw"].squeeze()
+            # valid_mask = valid_mask_ts.numpy()
+            # valid_mask_ts = valid_mask_ts.to(self.device)
 
             # Random number generator
             seed = val_seed_ls.pop()
@@ -526,7 +529,7 @@ class MarigoldTrainer:
 
             # Predict depth
             pipe_out: MarigoldDepthOutput = self.model(
-                rgb_int,
+                bscan,
                 denoising_steps=self.cfg.validation.denoising_steps,
                 ensemble_size=self.cfg.validation.ensemble_size,
                 processing_res=self.cfg.validation.processing_res,
@@ -540,26 +543,26 @@ class MarigoldTrainer:
 
             depth_pred: np.ndarray = pipe_out.depth_np
 
-            if "least_square" == self.cfg.eval.alignment:
-                depth_pred, scale, shift = align_depth_least_square(
-                    gt_arr=depth_raw,
-                    pred_arr=depth_pred,
-                    valid_mask_arr=valid_mask,
-                    return_scale_shift=True,
-                    max_resolution=self.cfg.eval.align_max_res,
-                )
-            else:
-                raise RuntimeError(f"Unknown alignment type: {self.cfg.eval.alignment}")
+            # if "least_square" == self.cfg.eval.alignment:
+            #     depth_pred, scale, shift = align_depth_least_square(
+            #         gt_arr=depth_raw,
+            #         pred_arr=depth_pred,
+            #         valid_mask_arr=valid_mask,
+            #         return_scale_shift=True,
+            #         max_resolution=self.cfg.eval.align_max_res,
+            #     )
+            # else:
+            #     raise RuntimeError(f"Unknown alignment type: {self.cfg.eval.alignment}")
 
             # Clip to dataset min max
             depth_pred = np.clip(
                 depth_pred,
-                a_min=data_loader.dataset.min_depth,
-                a_max=data_loader.dataset.max_depth,
+                a_min=data_loader.dataset.min_eps,
+                a_max=data_loader.dataset.max_eps,
             )
 
-            # clip to d > 0 for evaluation
-            depth_pred = np.clip(depth_pred, a_min=1e-6, a_max=None)
+            # # clip to d > 0 for evaluation
+            # depth_pred = np.clip(depth_pred, a_min=1e-6, a_max=None)
 
             # Evaluate
             sample_metric = []
@@ -567,7 +570,7 @@ class MarigoldTrainer:
 
             for met_func in self.metric_funcs:
                 _metric_name = met_func.__name__
-                _metric = met_func(depth_pred_ts, depth_raw_ts, valid_mask_ts).item()
+                _metric = met_func(depth_pred_ts, depth_raw_ts).item()
                 sample_metric.append(_metric.__str__())
                 metric_tracker.update(_metric_name, _metric)
 

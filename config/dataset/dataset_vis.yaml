@@ -1,9 +1,14 @@
 dataset:
   vis:
-  - name: hypersim
-    disp_name: hypersim_vis
-    dir: hypersim/hypersim_processed_val.tar
-    filenames: data_split/hypersim/selected_vis_sample.txt
-    resize_to_hw:
-    - 480
-    - 640
+  # - name: hypersim
+  #   disp_name: hypersim_vis
+  #   dir: hypersim/hypersim_processed_val.tar
+  #   filenames: data_split/hypersim/selected_vis_sample.txt
+  #   resize_to_hw:
+  #   - 480
+  #   - 640
+
+    - name: gprMax
+      disp_name: gprMax_val
+      dir: data/
+      filenames: data_split/gprmax/gprmax_val.txt
