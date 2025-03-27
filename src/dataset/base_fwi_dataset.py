@@ -114,7 +114,7 @@ class BaseFWIDataset(Dataset):
         # Read Bscan data
         bscan = self._read_npy(bscan_rel_path)
         # TODO: Warp?
-        bscan = transform.warp(bscan, self.tform, output_shape=(224, 224))
+        bscan = transform.warp(bscan, self.tform, output_shape=(230, 230))
         b_min, b_max = bscan.min(), bscan.max()
         bscan_norm = (bscan - b_min) / (b_max - b_min) * 2 - 1 # [-1, 1]
 
