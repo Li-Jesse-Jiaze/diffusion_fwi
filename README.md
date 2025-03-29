@@ -2,7 +2,7 @@
 
 This is the code for the GNN 24/25ws final project.
 
-The code of discriminative models such as U-Net is in `./discriminative_model`.
+The code of discriminative models such as Modified U-Net is in `./discriminative_model`.
 
 ![unet](./assert/u-net.png)
 
