@@ -20,3 +20,6 @@
 *.mexa64
 *.pdf
 *.tar
+
+out*/
+*.ipynb
