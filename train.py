@@ -69,6 +69,7 @@ if "__main__" == __name__:
     parser.add_argument(
         "--resume_run",
         action="store",
+        # default='./output/train_fwi/checkpoint/latest',
         default=None,
         help="Path of checkpoint to be resumed. If given, will ignore --config, and checkpoint in the config",
     )
@@ -359,6 +360,7 @@ if "__main__" == __name__:
             resume_run, load_trainer_state=True, resume_lr_scheduler=True
         )
 
+    # trainer.visualize()
     # -------------------- Training & Evaluation Loop --------------------
     try:
         trainer.train(t_end=t_end)

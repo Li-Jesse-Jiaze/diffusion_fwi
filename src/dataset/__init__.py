@@ -22,7 +22,6 @@
 
 import os
 
-# from .base_depth_dataset import BaseDepthDataset, get_pred_name, DatasetMode  # noqa: F401
 from .base_fwi_dataset import BaseFWIDataset, get_pred_name, DatasetMode  # noqa: F401
 from .gprmax_dataset import GRPMaxDataset
 

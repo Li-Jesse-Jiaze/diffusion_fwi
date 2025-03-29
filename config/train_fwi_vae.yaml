@@ -33,19 +33,19 @@ dataloader:
 trainer:
   name: MarigoldTrainer
   training_noise_scheduler:
-    pretrained_path: stable-diffusion-2
+    pretrained_path: sd-gdlc
   init_seed: 2024  # use null to train w/o seeding
   save_period: 50
   backup_period: 2000
-  validation_period: 2000
-  visualization_period: 2000
+  validation_period: 10000
+  visualization_period: 10000
 
 multi_res_noise:
   strength: 0.9
   annealed: true
   downscale_strategy: original
 
-gt_depth_type: depth_raw_norm
+gt_depth_type: eps_norm
 gt_mask_type: valid_mask_raw
 
 max_epoch: 10000  # a large enough number
@@ -87,8 +87,8 @@ eval:
   - rmse_linear
   - rmse_log
   - log10
-  - delta1_acc
-  - delta2_acc
-  - delta3_acc
+  # - delta1_acc
+  # - delta2_acc
+  # - delta3_acc
   - i_rmse
   - silog_rmse

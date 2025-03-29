@@ -30,7 +30,7 @@ from typing import List, Union
 
 import numpy as np
 import torch
-from diffusers import DDPMScheduler
+from diffusers import DDPMScheduler, AutoencoderKL
 from omegaconf import OmegaConf
 from torch.nn import Conv2d
 from torch.nn.parameter import Parameter
@@ -166,6 +166,10 @@ class MarigoldTrainer:
         self.in_evaluation = False
         self.global_seed_sequence: List = []  # consistent global seed sequence, used to seed random generator, to ensure consistency when resuming
 
+        vae_ = AutoencoderKL.from_pretrained("/root/autodl-tmp/vae-bscan", local_files_only=True).to("cuda")
+        self.encoder2 = vae_.encoder
+        self.quant_conv2 = vae_.quant_conv
+
     def _replace_unet_conv_in(self):
         # replace the first layer to accept 8 in_channels
         _weight = self.model.unet.conv_in.weight.clone()  # [320, 4, 3, 3]
@@ -239,7 +243,15 @@ class MarigoldTrainer:
 
                 with torch.no_grad():
                     # Encode image
-                    rgb_latent = self.model.encode_rgb(bscan)  # [B, 4, h, w]
+                    # rgb_latent = self.model.encode_rgb(bscan)  # [B, 4, h, w]
+
+                    # encode
+                    h = self.encoder2(bscan)
+                    moments = self.quant_conv2(h)
+                    mean, logvar = torch.chunk(moments, 2, dim=1)
+                    # scale latent
+                    rgb_latent = mean * 0.18215
+
                     # Encode GT depth
                     gt_depth_latent = self.encode_depth(
                         depth_gt_for_latent
@@ -389,8 +401,17 @@ class MarigoldTrainer:
     def encode_depth(self, depth_in):
         # stack depth into 3-channel
         stacked = self.stack_depth_images(depth_in)
+        
         # encode using VAE encoder
         depth_latent = self.model.encode_rgb(stacked)
+
+        # # encode
+        # h = self.encoder2(stacked)
+        # moments = self.quant_conv2(h)
+        # mean, logvar = torch.chunk(moments, 2, dim=1)
+        # # scale latent
+        # depth_latent = mean * 0.18215
+
         return depth_latent
 
     @staticmethod
@@ -531,7 +552,8 @@ class MarigoldTrainer:
             pipe_out: MarigoldDepthOutput = self.model(
                 bscan,
                 denoising_steps=self.cfg.validation.denoising_steps,
-                ensemble_size=self.cfg.validation.ensemble_size,
+                # ensemble_size=self.cfg.validation.ensemble_size,
+                ensemble_size=10,
                 processing_res=self.cfg.validation.processing_res,
                 match_input_res=self.cfg.validation.match_input_res,
                 generator=generator,
@@ -542,6 +564,18 @@ class MarigoldTrainer:
             )
 
             depth_pred: np.ndarray = pipe_out.depth_np
+            
+            import matplotlib.pyplot as plt
+
+            fig, axes = plt.subplots(1, 2)
+            axes[0].imshow(depth_raw)
+            axes[1].imshow(depth_pred)
+            plt.savefig(f'./output/fig/fig_{i}.png')
+
+            with open(f'./output/fig/target/target_{i}.npy', 'wb') as f:
+                np.save(f, depth_raw)
+            with open(f'./output/fig/output/output_{i}.npy', 'wb') as f:
+                np.save(f, depth_pred) 
 
             # if "least_square" == self.cfg.eval.alignment:
             #     depth_pred, scale, shift = align_depth_least_square(
@@ -554,32 +588,32 @@ class MarigoldTrainer:
             # else:
             #     raise RuntimeError(f"Unknown alignment type: {self.cfg.eval.alignment}")
 
-            # Clip to dataset min max
-            depth_pred = np.clip(
-                depth_pred,
-                a_min=data_loader.dataset.min_eps,
-                a_max=data_loader.dataset.max_eps,
-            )
+            # # Clip to dataset min max
+            # depth_pred = np.clip(
+            #     depth_pred,
+            #     a_min=data_loader.dataset.min_eps,
+            #     a_max=data_loader.dataset.max_eps,
+            # )
 
-            # # clip to d > 0 for evaluation
-            # depth_pred = np.clip(depth_pred, a_min=1e-6, a_max=None)
+            # # # clip to d > 0 for evaluation
+            # # depth_pred = np.clip(depth_pred, a_min=1e-6, a_max=None)
 
-            # Evaluate
-            sample_metric = []
-            depth_pred_ts = torch.from_numpy(depth_pred).to(self.device)
+            # # Evaluate
+            # sample_metric = []
+            # depth_pred_ts = torch.from_numpy(depth_pred).to(self.device)
 
-            for met_func in self.metric_funcs:
-                _metric_name = met_func.__name__
-                _metric = met_func(depth_pred_ts, depth_raw_ts).item()
-                sample_metric.append(_metric.__str__())
-                metric_tracker.update(_metric_name, _metric)
+            # for met_func in self.metric_funcs:
+            #     _metric_name = met_func.__name__
+            #     _metric = met_func(depth_pred_ts, depth_raw_ts).item()
+            #     sample_metric.append(_metric.__str__())
+            #     metric_tracker.update(_metric_name, _metric)
 
-            # Save as 16-bit uint png
-            if save_to_dir is not None:
-                img_name = batch["rgb_relative_path"][0].replace("/", "_")
-                png_save_path = os.path.join(save_to_dir, f"{img_name}.png")
-                depth_to_save = (pipe_out.depth_np * 65535.0).astype(np.uint16)
-                Image.fromarray(depth_to_save).save(png_save_path, mode="I;16")
+            # # Save as 16-bit uint png
+            # if save_to_dir is not None:
+            #     img_name = batch["rgb_relative_path"][0].replace("/", "_")
+            #     png_save_path = os.path.join(save_to_dir, f"{img_name}.png")
+            #     depth_to_save = (pipe_out.depth_np * 65535.0).astype(np.uint16)
+            #     Image.fromarray(depth_to_save).save(png_save_path, mode="I;16")
 
         return metric_tracker.result()
 

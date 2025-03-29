@@ -144,6 +144,11 @@ class MarigoldPipeline(DiffusionPipeline):
 
         self.empty_text_embed = None
 
+        vae_ = AutoencoderKL.from_pretrained("/root/autodl-tmp/vae-bscan", local_files_only=True).to("cuda")
+        self.encoder2 = vae_.encoder
+        self.quant_conv2 = vae_.quant_conv
+
+
     @torch.no_grad()
     def __call__(
         self,
@@ -311,7 +316,7 @@ class MarigoldPipeline(DiffusionPipeline):
             pred_uncert = pred_uncert.squeeze().cpu().numpy()
 
         # Clip output range
-        depth_pred = depth_pred.clip(0, 1)
+        depth_pred = depth_pred.clip(-1, 1)
 
         # Colorize
         if color_map is not None:
@@ -397,7 +402,15 @@ class MarigoldPipeline(DiffusionPipeline):
         timesteps = self.scheduler.timesteps  # [T]
 
         # Encode image
-        rgb_latent = self.encode_rgb(rgb_in)
+        # rgb_latent = self.encode_rgb(rgb_in)
+
+        # encode
+        h = self.encoder2(rgb_in)
+        moments = self.quant_conv2(h)
+        mean, logvar = torch.chunk(moments, 2, dim=1)
+        # scale latent
+        rgb_latent = mean * 0.18215
+
 
         # Initial depth map (noise)
         depth_latent = torch.randn(
@@ -425,7 +438,16 @@ class MarigoldPipeline(DiffusionPipeline):
         else:
             iterable = enumerate(timesteps)
 
+        # with open(f'/root/autodl-tmp/bscan.npy', 'wb') as f:
+        #     np.save(f, rgb_latent.cpu().numpy())
+
+
         for i, t in iterable:
+            # if i in [0, 25]:
+            #     with open(f'/root/autodl-tmp/{i}.npy', 'wb') as f:
+            #         np.save(f, depth_latent.cpu().numpy())
+            #     with open(f'/root/autodl-tmp/{i}_de.npy', 'wb') as f:
+            #         np.save(f, self.decode_depth(depth_latent).cpu().numpy())
             unet_input = torch.cat(
                 [rgb_latent, depth_latent], dim=1
             )  # this order is important
@@ -440,12 +462,13 @@ class MarigoldPipeline(DiffusionPipeline):
                 noise_pred, t, depth_latent, generator=generator
             ).prev_sample
 
+        # with open(f'/root/autodl-tmp/eps.npy', 'wb') as f:
+        #     np.save(f, depth_latent.cpu().numpy())
+
         depth = self.decode_depth(depth_latent)
 
         # clip prediction
         depth = torch.clip(depth, -1.0, 1.0)
-        # shift to [0, 1]
-        depth = (depth + 1.0) / 2.0
 
         return depth
 
